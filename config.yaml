@@ -1,0 +1,71 @@
+# Claude Transcript ETL Configuration
+# ====================================
+# Copy this file and customize for your environment.
+# All paths support ~ (home directory) and environment variables.
+
+# Database backend: "sqlite" (default, zero-install) or "duckdb" (faster for large datasets)
+backend: sqlite
+
+# Where to store the database file (relative to this config or absolute)
+db_path: ./transcripts.db
+
+# Source directories — where Claude stores conversation transcripts
+# These are the defaults; override if you've customized Claude's data location.
+sources:
+  claude_code:
+    enabled: true
+    # macOS/Linux: ~/.claude
+    # Windows: %APPDATA%\Claude (or %USERPROFILE%\.claude)
+    path: ~/.claude
+
+  cowork:
+    enabled: true
+    # macOS: ~/Library/Application Support/Claude/local-agent-mode-sessions
+    # Windows: %APPDATA%\Claude\local-agent-mode-sessions
+    # Linux: ~/.config/Claude/local-agent-mode-sessions
+    path: auto  # "auto" detects based on OS
+
+# Scheduling — how often the ETL runs automatically
+schedule:
+  enabled: true
+  interval_minutes: 30
+  run_on_login: true
+
+# Token pricing (USD per 1M tokens) — update when Anthropic changes pricing
+pricing:
+  claude-opus-4-6:
+    input: 15.00
+    output: 75.00
+    cache_read: 1.50
+    cache_create: 18.75
+  claude-sonnet-4-6:
+    input: 3.00
+    output: 15.00
+    cache_read: 0.30
+    cache_create: 3.75
+  claude-haiku-4-5-20251001:
+    input: 0.80
+    output: 4.00
+    cache_read: 0.08
+    cache_create: 1.00
+  default:
+    input: 3.00
+    output: 15.00
+    cache_read: 0.30
+    cache_create: 3.75
+
+# Analysis settings (for the transcript analysis agent)
+analysis:
+  # Which user identifiers to track (for multi-user/team setups)
+  # Leave empty to track all users found in transcripts
+  users: []
+
+  # Team groupings (for team-level metrics)
+  # teams:
+  #   engineering:
+  #     - alice
+  #     - bob
+  #   product:
+  #     - carol
+  #     - dave
+  teams: {}
