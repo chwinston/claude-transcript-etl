@@ -389,7 +389,10 @@ def find_jsonl_files(claude_dir: Path) -> list[dict]:
         if not proj_dir.is_dir():
             continue
         for jsonl_file in sorted(proj_dir.glob("*.jsonl")):
-            stat = jsonl_file.stat()
+            try:
+                stat = jsonl_file.stat()
+            except (OSError, FileNotFoundError):
+                continue
             is_agent = jsonl_file.name.startswith("agent-")
             files.append({
                 "file_path": str(jsonl_file),
@@ -419,7 +422,10 @@ def find_cowork_jsonl_files(cowork_dir: Path) -> list[dict]:
             if not fname.endswith(".jsonl") or fname == "audit.jsonl":
                 continue
             full_path = root_path / fname
-            stat = full_path.stat()
+            try:
+                stat = full_path.stat()
+            except (OSError, FileNotFoundError):
+                continue
             session_id = full_path.stem
             is_agent = session_id.startswith("agent-")
 

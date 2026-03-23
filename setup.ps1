@@ -2,7 +2,7 @@
 # Run once: .\setup.ps1
 # Options:
 #   -Backend duckdb     Use DuckDB instead of SQLite
-#   -NoSchedule         Skip Task Scheduler installation
+#   -NoSchedule         Skip scheduler installation
 #   -Interval 30        Set schedule interval in minutes (default: 30)
 
 param(
@@ -55,33 +55,69 @@ Write-Host "4. Running initial extraction..."
 & $PythonPath "$ScriptDir\etl.py" --full --backend $Backend
 Write-Host "   Initial extraction complete"
 
-# 5. Install Windows Task Scheduler
+# 5. Install scheduler
 if (-not $NoSchedule) {
-    Write-Host "5. Installing Task Scheduler job..."
+    Write-Host "5. Installing scheduler..."
 
     $TaskName = "ClaudeTranscriptETL"
 
-    # Read and fill template
-    $Template = Get-Content "$ScriptDir\schedulers\task-scheduler.xml.template" -Raw
-    $Template = $Template -replace "{{PYTHON_PATH}}", $PythonPath
-    $Template = $Template -replace "{{ETL_SCRIPT_PATH}}", "$ScriptDir\etl.py"
-    $Template = $Template -replace "{{INTERVAL_MINUTES}}", $Interval
-    $Template = $Template -replace "{{RUN_AT_LOGIN}}", "true"
-    $Template = $Template -replace "{{WORKING_DIR}}", $ScriptDir
+    # Test if we have admin privileges for Task Scheduler
+    $IsAdmin = $false
+    try {
+        $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $Principal = New-Object Security.Principal.WindowsPrincipal($Identity)
+        $IsAdmin = $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch {}
 
-    $TempXml = "$env:TEMP\claude-etl-task.xml"
-    $Template | Out-File -FilePath $TempXml -Encoding unicode
+    if ($IsAdmin) {
+        # Admin path: use Task Scheduler (proper quoting for paths with spaces)
+        Write-Host "   Admin detected - using Task Scheduler"
 
-    # Remove existing task if present
-    schtasks /Delete /TN $TaskName /F 2>$null
+        $Template = Get-Content "$ScriptDir\schedulers\task-scheduler.xml.template" -Raw
+        $Template = $Template -replace "{{PYTHON_PATH}}", [System.Security.SecurityElement]::Escape($PythonPath)
+        $Template = $Template -replace "{{ETL_SCRIPT_PATH}}", [System.Security.SecurityElement]::Escape("$ScriptDir\etl.py")
+        $Template = $Template -replace "{{INTERVAL_MINUTES}}", $Interval
+        $Template = $Template -replace "{{RUN_AT_LOGIN}}", "true"
+        $Template = $Template -replace "{{WORKING_DIR}}", [System.Security.SecurityElement]::Escape($ScriptDir)
 
-    # Create task
-    schtasks /Create /TN $TaskName /XML $TempXml /F
-    Remove-Item $TempXml -ErrorAction SilentlyContinue
+        $TempXml = "$env:TEMP\claude-etl-task.xml"
+        $Template | Out-File -FilePath $TempXml -Encoding unicode
 
-    Write-Host "   Task Scheduler job installed ($TaskName)"
-    Write-Host "   To stop:    schtasks /Delete /TN $TaskName /F"
-    Write-Host "   To view:    schtasks /Query /TN $TaskName"
+        schtasks /Delete /TN "`"$TaskName`"" /F 2>$null
+        schtasks /Create /TN "`"$TaskName`"" /XML "`"$TempXml`"" /F
+        Remove-Item $TempXml -ErrorAction SilentlyContinue
+
+        Write-Host "   Task Scheduler job installed ($TaskName)" -ForegroundColor Green
+        Write-Host "   To stop:  schtasks /Delete /TN `"$TaskName`" /F"
+        Write-Host "   To view:  schtasks /Query /TN `"$TaskName`""
+    } else {
+        # Non-admin path: use VBS startup loop (no elevation required)
+        Write-Host "   No admin privileges - using startup folder instead"
+
+        $StartupDir = [Environment]::GetFolderPath("Startup")
+        $VbsSource = "$ScriptDir\etl-loop.vbs"
+        $VbsLauncher = "$StartupDir\ClaudeTranscriptETL.vbs"
+
+        if (-not (Test-Path $VbsSource)) {
+            Write-Host "   ERROR: etl-loop.vbs not found in $ScriptDir" -ForegroundColor Red
+            Write-Host "   The VBS loop script should be included in the repo."
+            exit 1
+        }
+
+        # Write a launcher in the Startup folder that invokes the repo's VBS loop
+        $LauncherContent = "' Startup launcher - runs Claude Transcript ETL loop silently`r`n"
+        $LauncherContent += "CreateObject(""WScript.Shell"").Run """"""wscript.exe"""""" """"""$VbsSource""""""`", 0, False"
+        Set-Content -Path $VbsLauncher -Value $LauncherContent -Encoding ASCII
+
+        # Start it now for this session
+        Start-Process wscript.exe -ArgumentList "`"$VbsSource`""
+
+        Write-Host "   Startup script installed" -ForegroundColor Green
+        Write-Host "   Loop: $VbsSource (runs every ${Interval}min)"
+        Write-Host "   Startup launcher: $VbsLauncher"
+        Write-Host "   To stop now:  taskkill /IM wscript.exe /F"
+        Write-Host "   To disable:   Remove-Item `"$VbsLauncher`""
+    }
 } else {
     Write-Host "5. Scheduler: skipped (-NoSchedule)"
 }
@@ -94,7 +130,7 @@ Write-Host "  Database: $ScriptDir\transcripts.$DbExt"
 Write-Host "  Logs:     $ScriptDir\logs\"
 Write-Host ""
 Write-Host "Commands:"
-Write-Host "  $PythonPath $ScriptDir\etl.py --stats       # View stats"
-Write-Host "  $PythonPath $ScriptDir\etl.py               # Manual incremental run"
-Write-Host "  $PythonPath $ScriptDir\etl.py --full         # Full re-extraction"
+Write-Host "  $PythonPath `"$ScriptDir\etl.py`" --stats       # View stats"
+Write-Host "  $PythonPath `"$ScriptDir\etl.py`"               # Manual incremental run"
+Write-Host "  $PythonPath `"$ScriptDir\etl.py`" --full         # Full re-extraction"
 Write-Host ""
