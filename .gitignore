@@ -3,7 +3,9 @@
 *.db-wal
 *.duckdb
 *.duckdb.wal
-logs/
+logs/*
+!logs/sessions/
+!logs/execution_log.json
 __pycache__/
 *.pyc
 .DS_Store

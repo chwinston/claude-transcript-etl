@@ -1,0 +1,22 @@
+[
+  {
+    "session_id": "sess_20260323_200157_win_compat",
+    "started_at": "2026-03-23T19:45:00Z",
+    "ended_at": "2026-03-23T20:01:57Z",
+    "status": "closed",
+    "trigger": "/dls-log",
+    "task_id": null,
+    "session_type": "debugging",
+    "spec_refs": [],
+    "summary": "Initialized repo, analyzed Windows test transcript, fixed stat() crashes, Task Scheduler admin requirement, and path quoting — pushed to GitHub",
+    "files_created_count": 1,
+    "files_modified_count": 2,
+    "has_frustration_points": false,
+    "has_unsynced_spec_changes": false,
+    "has_lessons_learned": true,
+    "has_pending_followup": true,
+    "agent_model": "claude-opus-4-6",
+    "detail_path": "logs/sessions/sess_20260323_200157_win_compat.md",
+    "logged_at": "2026-03-23T20:01:57Z"
+  }
+]
